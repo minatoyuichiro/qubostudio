@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QUBO Studio - Wide Editor</title>
+    <title>QUBO Studio - Persistent Edition</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -12,200 +12,187 @@
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        .project-card { transition: all 0.2s; border-left: 4px solid transparent; }
+        .project-card.active { background-color: #f8fafc; border-left-color: #3b82f6; }
+        .project-card.original.active { border-left-color: #ec4899; }
     </style>
 </head>
 <body class="bg-slate-50 p-4 flex flex-col gap-4">
 
     <header class="flex justify-between items-center bg-white px-6 py-3 rounded-2xl border border-slate-200 shadow-sm shrink-0">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-blue-200 shadow-lg">Q</div>
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg">Q</div>
             <h1 class="font-extrabold text-slate-800 tracking-tight">QUBO <span class="text-blue-600">Studio</span></h1>
         </div>
-        
-        <div class="flex items-center gap-6">
-            <div id="status-group" class="flex flex-col items-end">
-                <span id="py-status" class="text-[10px] font-bold text-orange-400 uppercase tracking-widest leading-none">Pyodide: Initializing</span>
-                <div class="w-32 h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                    <div id="progress-bar" class="w-0 h-full bg-blue-500 transition-all duration-100"></div>
-                </div>
-            </div>
-            <button id="run-btn" onclick="compileAndSolve()" disabled 
-                class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-xs">
-                実行
-            </button>
+        <div class="flex items-center gap-4 text-xs">
+            <span id="save-status" class="text-slate-400 font-medium">● 自動保存済み</span>
+            <div id="py-status" class="text-orange-400 font-bold uppercase tracking-widest">Pyodide Loading...</div>
+            <button id="run-btn" onclick="compileAndSolve()" disabled class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-md">実行</button>
         </div>
     </header>
 
     <div class="flex-1 flex gap-4 min-h-0">
-        
-        <section class="flex-[3] flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="bg-slate-50/50 px-5 py-2.5 border-b border-slate-200 flex justify-between items-center shrink-0">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Formulation (SymPy)</span>
-                <span class="text-[10px] text-blue-500 font-mono">index.py</span>
+        <section class="flex-[2.5] flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="bg-slate-50/50 px-5 py-2.5 border-b border-slate-200 flex justify-between shrink-0">
+                <span id="current-project-name" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">My Project</span>
+                <div class="w-32 h-1 bg-slate-100 rounded-full self-center overflow-hidden"><div id="progress-bar" class="w-0 h-full bg-blue-500 transition-all"></div></div>
             </div>
-            <textarea id="python-input" class="w-full flex-1 p-6 text-slate-700 font-mono text-sm outline-none resize-none leading-relaxed custom-scrollbar" spellcheck="false">
-import sympy as sp
-import json
-
-# 1. 変数の定義
-n = 10
-x = sp.symbols(f'x0:{n}')
-
-# 2. ハミルトニアンの記述
-# 例：変数全体の合計が 3 になるようにする
-H = (sum(x) - 3)**2
-
-# 3. QUBOへの自動変換
-expr = sp.expand(H)
-qubo_dict = {}
-
-for term in expr.as_ordered_terms():
-    coeff, monom = term.as_coeff_Mul()
-    vars = list(monom.free_symbols)
-    v_indices = sorted([int(v.name[1:]) for v in vars])
-    
-    if len(v_indices) == 1:
-        key = f"{v_indices[0]},{v_indices[0]}"
-        qubo_dict[key] = qubo_dict.get(key, 0) + float(coeff)
-    elif len(v_indices) == 2:
-        key = f"{v_indices[0]},{v_indices[1]}"
-        qubo_dict[key] = qubo_dict.get(key, 0) + float(coeff)
-
-json.dumps(qubo_dict)
-            </textarea>
+            <textarea id="python-input" class="w-full flex-1 p-6 text-slate-700 font-mono text-sm outline-none resize-none custom-scrollbar" spellcheck="false"></textarea>
         </section>
 
-        <aside class="flex-1 flex flex-col bg-slate-900 rounded-2xl shadow-xl overflow-hidden min-w-[320px]">
-            <div class="bg-slate-800 px-5 py-3 border-b border-slate-700 flex justify-between items-center shrink-0">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Console</span>
-                <span id="kT-display" class="text-[10px] font-mono text-blue-400">WAITING</span>
-            </div>
-            <div id="output" class="flex-1 p-5 font-mono text-[11px] text-blue-200 overflow-auto custom-scrollbar leading-relaxed">
-                Pythonエンジンを起動中...
-            </div>
-        </aside>
+        <div class="flex-1 flex flex-col gap-4 min-w-[350px]">
+            <aside class="flex-[1.5] bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/30 font-bold text-[10px] text-slate-400 tracking-widest">PROJECT LIBRARY</div>
+                <div id="project-list" class="flex-1 overflow-auto custom-scrollbar">
+                    <div id="proj-original" onclick="loadProject(-1)" class="project-card original active p-4 cursor-pointer hover:bg-slate-50 border-b border-slate-100">
+                        <div class="flex justify-between items-start">
+                            <h3 class="text-xs font-bold text-pink-600">✨ My Project</h3>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1">PCに自動保存されているあなたのコード</p>
+                    </div>
+                </div>
+            </aside>
 
+            <aside class="flex-1 bg-slate-900 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+                <div class="bg-slate-800 px-5 py-2 border-b border-slate-700 flex justify-between items-center shrink-0">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Console</span>
+                    <span id="kT-display" class="text-[10px] font-mono text-blue-400">READY</span>
+                </div>
+                <div id="output" class="flex-1 p-4 font-mono text-[11px] text-blue-200 overflow-auto custom-scrollbar"></div>
+            </aside>
+        </div>
     </div>
 
     <script>
-        // --- Bqubo クラス ---
-        class Bqubo {
-            constructor(qubo, params = {}) {
-                this.qubo = qubo;
-                this.params = {
-                    kTinit: parseFloat(params.kTinit) || 10.0,
-                    cl: parseFloat(params.cl) || 0.992,
-                    kTF: parseFloat(params.kTF) || 0.01,
-                    rpt: parseInt(params.rpt) || 1500 
-                };
-            }
-            async solve(onStep) {
-                const workerCode = `
-                    self.onmessage = function(e) {
-                        const { n, linear, adjTo, adjWeight, adjCount, offsets, kTinit, cl, kTF, rpt } = e.data;
-                        const state = new Uint8Array(n);
-                        for(let i=0; i<n; i++) state[i] = Math.random() > 0.5 ? 1 : 0;
-                        let kT = kTinit;
-                        while(kT > kTF) {
-                            for (let r = 0; r < rpt; r++) {
-                                const i = (Math.random() * n) | 0;
-                                let localField = linear[i];
-                                const start = offsets[i];
-                                const count = adjCount[i];
-                                for (let k = 0; k < count; k++) {
-                                    const idx = start + k;
-                                    if (state[adjTo[idx]] === 1) localField += adjWeight[idx];
-                                }
-                                const deltaE = (state[i] === 0) ? localField : -localField;
-                                if (deltaE <= 0 || Math.random() < Math.exp(-deltaE / kT)) state[i] ^= 1;
-                            }
-                            kT *= cl;
-                            self.postMessage({ state, kT, finished: false });
-                        }
-                        self.postMessage({ state, kT, finished: true });
-                    };
-                `;
-                const blob = new Blob([workerCode], { type: 'application/javascript' });
-                const worker = new Worker(URL.createObjectURL(blob));
-                const rawNodes = Array.from(new Set(Object.keys(this.qubo).flatMap(k => k.split(',').map(Number)))).sort((a,b)=>a-b);
-                const map = new Map(rawNodes.map((n, i) => [n, i]));
-                const N = rawNodes.length;
-                const linear = new Float64Array(N), tempAdj = Array.from({ length: N }, () => []);
-                let totalEdges = 0;
-                for (let key in this.qubo) {
-                    const parts = key.split(',').map(Number);
-                    const w = this.qubo[key], i = map.get(parts[0]);
-                    if (parts.length === 1 || parts[0] === parts[1]) { linear[i] += w; } 
-                    else {
-                        const j = map.get(parts[1]);
-                        tempAdj[i].push({to: j, w: w}); tempAdj[j].push({to: i, w: w});
-                        totalEdges += 2;
-                    }
+        const SAVED_KEY = 'qubo_studio_original_code';
+        const DEFAULT_CODE = "# あなたのオリジナルコードをここに\nimport sympy as sp\nx = sp.symbols('x0:5')\nH = (sum(x) - 2)**2";
+        
+        const examples = [
+            { "project_name": "3ルーク問題 (3x3)", "code": "q = symbols_list([3, 3], 'q{}_{}')\nH = 0\nfor i in range(3): H += (sum(q[i][j] for j in range(3)) - 1)**2\nfor j in range(3): H += (sum(q[i][j] for i in range(3)) - 1)**2" },
+            { "project_name": "3量子ビット中2個を1にする", "code": "x, y, z = sp.symbols('x y z')\nH = (x + y + z - 2)**2" },
+            { "project_name": "シフトスケジューリング問題", "code": "T=6; N=10; req=np.array([3,3,5,5,4,4])\nshift=np.random.randint(0,4,(10,6))\nq=symbols_list([10],'q{}')\nH=(sum(q)-5)**2\nfor j in range(T): H+=(sum(shift[i][j]*q[i] for i in range(N))-req[j])**2" }
+        ];
+
+        let originalCode = localStorage.getItem(SAVED_KEY) || DEFAULT_CODE;
+        let pyodide;
+
+        function loadProject(index) {
+            const editor = document.getElementById('python-input');
+            const cards = document.querySelectorAll('.project-card');
+            cards.forEach(c => c.classList.remove('active'));
+
+            if (index === -1) {
+                editor.value = originalCode;
+                document.getElementById('proj-original').classList.add('active');
+                document.getElementById('current-project-name').innerText = "My Project";
+            } else {
+                // 例題に切り替える前にオリジナルを念のため保存
+                if (document.getElementById('proj-original').classList.contains('active')) {
+                    originalCode = editor.value;
+                    localStorage.setItem(SAVED_KEY, originalCode);
                 }
-                const adjTo = new Int32Array(totalEdges), adjWeight = new Float64Array(totalEdges), adjCount = new Int32Array(N), offsets = new Int32Array(N);
-                let currentPos = 0;
-                for (let i = 0; i < N; i++) {
-                    offsets[i] = currentPos; adjCount[i] = tempAdj[i].length;
-                    for (let edge of tempAdj[i]) { adjTo[currentPos] = edge.to; adjWeight[currentPos] = edge.w; currentPos++; }
-                }
-                return new Promise((resolve) => {
-                    worker.postMessage({ n: N, linear, adjTo, adjWeight, adjCount, offsets, ...this.params }, [linear.buffer, adjTo.buffer, adjWeight.buffer, adjCount.buffer, offsets.buffer]);
-                    worker.onmessage = (e) => {
-                        const { state, kT, finished } = e.data;
-                        const readableState = {};
-                        rawNodes.forEach((node, idx) => readableState[node] = state[idx]);
-                        if (onStep) onStep(readableState, kT);
-                        if (finished) { worker.terminate(); URL.revokeObjectURL(blob); resolve(readableState); }
-                    };
-                });
+                editor.value = examples[index].code;
+                cards[index + 1].classList.add('active');
+                document.getElementById('current-project-name').innerText = examples[index].project_name;
             }
         }
 
-        // --- Logic Bridge ---
-        let pyodide;
+        // 自動保存イベント
+        document.getElementById('python-input').addEventListener('input', (e) => {
+            if (document.getElementById('proj-original').classList.contains('active')) {
+                originalCode = e.target.value;
+                localStorage.setItem(SAVED_KEY, originalCode);
+                const status = document.getElementById('save-status');
+                status.innerText = "● 保存中...";
+                setTimeout(() => status.innerText = "● 自動保存済み", 500);
+            }
+        });
+
         async function init() {
-            const out = document.getElementById('output');
-            const status = document.getElementById('py-status');
-            try {
-                pyodide = await loadPyodide();
-                await pyodide.loadPackage("sympy");
-                status.innerText = "Pyodide: Ready";
-                status.classList.replace("text-orange-400", "text-green-500");
-                out.innerText = ">>> System ready.\n>>> Write your Hamiltonian in Python.";
-                document.getElementById('run-btn').disabled = false;
-            } catch (e) { out.innerText = "Init Error: " + e; }
+            document.getElementById('python-input').value = originalCode;
+            const listDiv = document.getElementById('project-list');
+            examples.forEach((ex, i) => {
+                const div = document.createElement('div');
+                div.className = "project-card p-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50";
+                div.onclick = () => loadProject(i);
+                div.innerHTML = `<h3 class="text-[11px] font-bold text-slate-700">${ex.project_name}</h3>`;
+                listDiv.appendChild(div);
+            });
+
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage(["sympy", "numpy"]);
+            await pyodide.runPythonAsync(`
+import sympy as sp
+import numpy as np
+def symbols_list(shape, name):
+    if len(shape) == 1: return np.array([sp.symbols(name.format(i)) for i in range(shape[0])])
+    res = np.empty(shape, dtype=object)
+    for i in range(shape[0]):
+        for j in range(shape[1]): res[i,j] = sp.symbols(name.format(i, j))
+    return res
+            `);
+            document.getElementById('py-status').innerText = "Python Ready";
+            document.getElementById('py-status').classList.replace("text-orange-400", "text-green-500");
+            document.getElementById('run-btn').disabled = false;
         }
 
         async function compileAndSolve() {
-            const pyCode = document.getElementById('python-input').value;
             const out = document.getElementById('output');
-            const prog = document.getElementById('progress-bar');
-            const kTDisp = document.getElementById('kT-display');
-            
-            out.innerText = ">>> Compiling SymPy formulation...";
-            prog.style.width = "0%";
-
+            const code = document.getElementById('python-input').value;
+            out.innerText = ">>> 解析中...";
             try {
-                const jsonStr = await pyodide.runPythonAsync(pyCode);
+                const pyBridge = `${code}\nexpr = sp.expand(H)\nqubo_dict = {}\nfor term in expr.as_ordered_terms():\n    coeff, monom = term.as_coeff_Mul()\n    vs = list(monom.free_symbols)\n    idx = \",\".join(sorted([v.name for v in vs]))\n    qubo_dict[idx] = qubo_dict.get(idx, 0) + float(coeff)\nimport json\njson.dumps(qubo_dict)`;
+                const jsonStr = await pyodide.runPythonAsync(pyBridge);
                 const quboData = JSON.parse(jsonStr);
-                
-                out.innerText += "\n>>> Compilation Success.\n>>> Variables: " + Object.keys(quboData).length;
-                out.innerText += "\n>>> Running Bqubo.js Solver...";
-
-                const solver = new Bqubo(quboData, { kTinit: 10.0, cl: 0.995 });
-                const result = await solver.solve((state, kT) => {
-                    const p = (1 - (kT / 10.0)) * 100;
-                    prog.style.width = `${p}%`;
-                    kTDisp.innerText = `TEMP: ${kT.toFixed(3)}`;
-                });
-
-                out.innerText += "\n\n[FINAL RESULT]\n" + JSON.stringify(result, null, 2);
-                prog.style.width = "100%";
-                kTDisp.innerText = "FINISHED";
-            } catch (e) { out.innerText += "\n\nERROR:\n" + e; }
+                const varMap = {}, names = [];
+                Object.keys(quboData).forEach(k => k.split(',').forEach(v => { if(!names.includes(v)) names.push(v); }));
+                names.sort().forEach((n, i) => varMap[n] = i);
+                const finalQubo = {};
+                for(let k in quboData) {
+                    const parts = k.split(',').map(n => varMap[n]);
+                    finalQubo[parts.length===1 ? `${parts[0]},${parts[0]}` : parts.join(',')] = quboData[k];
+                }
+                const solver = new Bqubo(finalQubo, { kTinit: 5.0, cl: 0.992 });
+                const res = await solver.solve((s, kT) => { document.getElementById('kT-display').innerText = `T: ${kT.toFixed(2)}`; });
+                const namedRes = {}; names.forEach((n, i) => namedRes[n] = res[i]);
+                out.innerText = "[計算結果]\n" + JSON.stringify(namedRes, null, 2);
+            } catch (e) { out.innerText = "Error: " + e; }
         }
 
+        class Bqubo {
+            constructor(q, p = {}) { this.qubo = q; this.params = { kTinit: p.kTinit||10, cl: p.cl||0.99, kTF: 0.01, rpt: 1000 }; }
+            async solve(onStep) {
+                const workerCode = `self.onmessage = function(e) {
+                    const { n, linear, adjTo, adjWeight, adjCount, offsets, kTinit, cl, kTF, rpt } = e.data;
+                    let state = new Uint8Array(n); for(let i=0; i<n; i++) state[i] = Math.random()>0.5?1:0;
+                    let kT = kTinit;
+                    while(kT > kTF) {
+                        for(let r=0; r<rpt; r++) {
+                            const i = (Math.random()*n)|0; let field = linear[i];
+                            for(let k=0; k<adjCount[i]; k++) { if(state[adjTo[offsets[i]+k]]===1) field += adjWeight[offsets[i]+k]; }
+                            if((state[i]===0?field:-field) <= 0 || Math.random() < Math.exp(-(state[i]===0?field:-field)/kT)) state[i]^=1;
+                        }
+                        kT *= cl; self.postMessage({state, kT, finished: false});
+                    }
+                    self.postMessage({state, kT, finished: true});
+                };`;
+                const blob = new Blob([workerCode], {type:'text/javascript'});
+                const worker = new Worker(URL.createObjectURL(blob));
+                const nodes = Array.from(new Set(Object.keys(this.qubo).flatMap(k=>k.split(',').map(Number)))).sort((a,b)=>a-b);
+                const N = nodes.length, map = new Map(nodes.map((n,i)=>[n,i])), linear = new Float64Array(N), adj = Array.from({length:N},()=>[]);
+                for(let k in this.qubo) {
+                    const p = k.split(',').map(Number), w = this.qubo[k];
+                    if(p.length===1 || p[0]===p[1]) linear[map.get(p[0])] += w;
+                    else { adj[map.get(p[0])].push({to:map.get(p[1]), w}); adj[map.get(p[1])].push({to:map.get(p[0]), w}); }
+                }
+                const adjTo = new Int32Array(adj.flat().length), adjW = new Float64Array(adj.flat().length), adjC = new Int32Array(N), off = new Int32Array(N);
+                let cur = 0; for(let i=0; i<N; i++){ off[i]=cur; adjC[i]=adj[i].length; for(let e of adj[i]){ adjTo[cur]=e.to; adjW[cur]=e.w; cur++; } }
+                return new Promise(res => {
+                    worker.postMessage({n:N, linear, adjTo, adjWeight:adjW, adjCount:adjC, offsets:off, ...this.params});
+                    worker.onmessage = e => { if(onStep) onStep(e.data.state, e.data.kT); if(e.data.finished) { worker.terminate(); res(e.data.state); } };
+                });
+            }
+        }
         init();
     </script>
 </body>
