@@ -3,98 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QUBO Studio - Minimal</title>
+    <title>QUBO Studio</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; min-height: 100dvh; color: #1e293b; }
         .font-mono { font-family: 'Fira Code', monospace; }
-        /* スムーズなスクロール */
-        html { scroll-behavior: smooth; }
-        /* PCでは固定、スマホでは流れる */
-        @media (min-width: 1024px) {
-            .main-layout { display: grid; grid-template-columns: 1fr 350px; height: calc(100vh - 70px); gap: 1rem; }
-            .sticky-panel { height: 100%; overflow: hidden; }
-        }
+        .modal-fade-in { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f1f5f9; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: skeleton-loading 1.5s infinite; }
+        @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
-<body class="p-3 md:p-6">
+<body class="p-3 md:p-6 flex flex-col items-center">
 
-    <header class="sticky top-0 z-50 flex justify-between items-center bg-white/80 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-200 shadow-sm mb-4">
-        <div class="flex items-center gap-2">
-            <div class="w-7 h-7 bg-blue-600 rounded flex items-center justify-center text-white font-black text-xs">Q</div>
-            <h1 class="font-bold text-slate-800 text-sm tracking-tight">QUBO Studio</h1>
+    <header class="w-full max-w-7xl sticky top-0 z-40 flex justify-between items-center bg-white/80 backdrop-blur-xl px-6 py-4 rounded-[2rem] border border-slate-200 shadow-sm mb-6">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-200">Q</div>
+            <div>
+                <h1 class="font-black text-slate-900 text-lg tracking-tighter leading-none">QUBO Studio</h1>
+                <p class="text-[9px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Quantum Annealing Simulator</p>
+            </div>
         </div>
+        
         <div class="flex items-center gap-3">
-            <div id="py-status" class="text-[8px] font-bold text-orange-400">LOADING...</div>
-            <button id="run-btn" onclick="compileAndSolve()" disabled class="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold text-xs shadow-blue-200 shadow-lg active:scale-95 transition-all">実行</button>
+            <div id="py-status" class="hidden md:block text-[10px] font-black text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 uppercase tracking-tighter">Engine: Loading</div>
+            <div class="flex items-center gap-2 border-l pl-3 border-slate-200">
+                <button id="run-btn" onclick="compileAndSolve()" disabled class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-2xl font-black text-xs shadow-xl shadow-blue-100 active:scale-95 disabled:opacity-20 transition-all">実行</button>
+                <button onclick="toggleHelp(true)" class="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 text-slate-500 font-black hover:bg-slate-200 transition-colors">?</button>
+            </div>
         </div>
     </header>
 
-    <div class="main-layout max-w-7xl mx-auto">
-        
-        <div class="flex flex-col gap-4 sticky-panel">
-            <section class="flex-1 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-                <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
-                    <span id="current-project-name" class="text-[10px] font-bold text-slate-400 uppercase">Editor / My Project</span>
-                    <span id="save-status" class="text-[9px] text-green-500 font-medium">● Auto Saved</span>
+    <main class="w-full max-w-7xl flex flex-col lg:flex-row gap-6">
+        <section class="flex-1 flex flex-col bg-white rounded-[3rem] border border-slate-200 shadow-sm overflow-hidden min-h-[600px]">
+            <div class="bg-slate-50/50 px-8 py-4 border-b border-slate-100 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span id="editor-label" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Editor / My Project</span>
                 </div>
-                <textarea id="python-input" class="w-full flex-1 p-5 text-slate-700 font-mono text-sm outline-none resize-none leading-relaxed" spellcheck="false"></textarea>
-            </section>
-        </div>
+                <div id="save-status" class="text-[9px] text-emerald-500 font-black flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> AUTO SAVED
+                </div>
+            </div>
+            <textarea id="python-input" class="w-full flex-1 p-8 text-slate-700 font-mono text-[13px] md:text-sm outline-none resize-none leading-relaxed" spellcheck="false" placeholder="# Write your QUBO code here..."></textarea>
+        </section>
 
-        <div class="flex flex-col gap-4 sticky-panel">
-            
-            <aside class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[250px] md:h-1/2">
-                <div class="p-4 border-b border-slate-100 bg-slate-50/50 font-bold text-[10px] text-slate-400 tracking-widest">EXAMPLES</div>
-                <div id="project-list" class="flex-1 overflow-auto p-2 space-y-1">
-                    <div id="proj-original" onclick="loadProject(-1)" class="p-3 rounded-xl cursor-pointer hover:bg-pink-50 text-pink-600 font-bold text-xs border border-transparent active:border-pink-200 active">✨ My Project</div>
+        <div class="w-full lg:w-[400px] flex flex-col gap-6">
+            <aside class="bg-white rounded-[3rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[450px] lg:h-full">
+                <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                    <span class="font-black text-[11px] text-slate-500 tracking-widest uppercase">Library</span>
+                    <button onclick="fetchLibrary(true)" class="text-[10px] text-blue-600 font-black hover:bg-blue-50 px-3 py-1.5 rounded-xl transition-all border border-transparent hover:border-blue-100">SYNC</button>
+                </div>
+                <div id="project-list" class="flex-1 overflow-auto p-5 space-y-4">
+                    <div onclick="loadProject(-1)" class="p-5 rounded-[2rem] cursor-pointer bg-slate-900 text-white shadow-xl shadow-slate-200 transition-all hover:-translate-y-0.5 active:scale-95">
+                        <div class="text-[10px] text-blue-300 font-black uppercase mb-1 tracking-widest">Workspace</div>
+                        <div class="text-sm font-black italic">✨ My Project (Restore)</div>
                     </div>
+                    <div id="lib-loader" class="space-y-4">
+                        <div class="h-24 w-full skeleton rounded-[2rem] opacity-50"></div>
+                        <div class="h-24 w-full skeleton rounded-[2rem] opacity-30"></div>
+                    </div>
+                </div>
             </aside>
+        </div>
+    </main>
 
-            <aside id="console-section" class="bg-slate-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[300px] md:flex-1">
-                <div class="bg-slate-800 px-5 py-3 border-b border-slate-700 flex justify-between items-center">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Output</span>
-                    <span id="kT-display" class="text-[10px] font-mono text-blue-400">READY</span>
+    <div id="result-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4" onclick="if(event.target==this) toggleResult(false)">
+        <div class="bg-white rounded-[3.5rem] max-w-4xl w-full max-h-[92vh] overflow-hidden shadow-2xl modal-fade-in flex flex-col border border-white/20">
+            <div class="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                <h2 class="text-2xl font-black text-slate-800 tracking-tighter">Solved Configuration</h2>
+                <button onclick="toggleResult(false)" class="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 rounded-2xl text-slate-400 text-3xl hover:text-red-500 transition-all shadow-sm">&times;</button>
+            </div>
+            
+            <div class="flex-1 overflow-auto p-6 md:p-10 space-y-10">
+                <div class="bg-slate-50 rounded-[2.5rem] border border-slate-100 p-6 shadow-inner">
+                    <div id="plotly-chart" class="w-full h-[380px]"></div>
                 </div>
-                <div class="p-1 h-1 bg-slate-800 overflow-hidden">
-                    <div id="progress-bar" class="w-0 h-full bg-blue-500 transition-all duration-300"></div>
+                
+                <div>
+                    <h3 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 px-4">State Details (JSON)</h3>
+                    <pre id="output-json" class="p-8 bg-slate-900 text-blue-200 rounded-[2.5rem] font-mono text-[11px] overflow-auto border border-slate-700 shadow-2xl"></pre>
                 </div>
-                <div id="output" class="flex-1 p-5 font-mono text-[11px] text-blue-100 overflow-auto leading-relaxed">エンジン起動中...</div>
-            </aside>
+            </div>
+
+            <div class="p-8 border-t border-slate-50 flex justify-center bg-white">
+                <button onclick="toggleResult(false)" class="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[1.8rem] font-black shadow-2xl shadow-blue-100 transition-all active:scale-95">CLOSE RESULT</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" onclick="if(event.target==this) toggleHelp(false)">
+        <div class="bg-white rounded-[2.5rem] max-w-sm w-full p-10 shadow-2xl modal-fade-in text-center border border-slate-100">
+            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-3xl font-black shadow-inner italic">Q?</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-3 tracking-tighter">Getting Started</h2>
+            <p class="text-sm text-slate-500 mb-8 leading-relaxed">ハミルトニアン（エネルギー関数）を <b>H</b> という変数名で定義してください。実行すると、H が最小になる状態を探索します。</p>
+            <button onclick="toggleHelp(false)" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-xl">UNDERSTOOD</button>
         </div>
     </div>
 
     <script>
-        const SAVED_KEY = 'qubo_studio_v2';
-        const DEFAULT_CODE = "# Pythonで式を書く\nimport sympy as sp\nx = sp.symbols('x0:5')\n# 5個中2個を1にしたい\nH = (sum(x) - 2)**2";
-        
-        const examples = [
-            { "name": "3ルーク問題 (3x3)", "code": "q = symbols_list([3, 3], 'q{}_{}')\nH = 0\nfor i in range(3): H += (sum(q[i][j] for j in range(3)) - 1)**2\nfor j in range(3): H += (sum(q[i][j] for i in range(3)) - 1)**2" },
-            { "name": "3量子ビット 2個選択", "code": "x, y, z = sp.symbols('x y z')\nH = (x + y + z - 2)**2" }
-        ];
+        // 設定: 指定されたURLを使用
+        const JSON_URL = 'https://minatoyuichiro.github.io/qubostudio/examples.json';
+        const SAVED_KEY = 'qubo_studio_v3_user_work';
+        const DEFAULT_CODE = "# Welcome to QUBO Studio\nimport sympy as sp\n\nx = sp.symbols('x0:10')\n# 10個中4個を1にする問題\nH = (sum(x) - 4)**2";
 
         let originalCode = localStorage.getItem(SAVED_KEY) || DEFAULT_CODE;
         let pyodide;
+        let exampleCache = [];
 
-        // --- 初期化 ---
+        async function fetchLibrary(force = false) {
+            const listDiv = document.getElementById('project-list');
+            const bustUrl = `${JSON_URL}?t=${new Date().getTime()}`;
+            
+            try {
+                const res = await fetch(bustUrl, force ? { cache: "no-store" } : {});
+                if (!res.ok) throw new Error();
+                exampleCache = await res.json();
+                renderLibrary();
+            } catch (e) {
+                console.error("Library sync failed.");
+                document.getElementById('lib-loader').innerHTML = '<div class="text-center py-10 text-slate-300 text-xs font-bold">Failed to load library.</div>';
+            }
+        }
+
+        function renderLibrary() {
+            const listDiv = document.getElementById('project-list');
+            const loader = document.getElementById('lib-loader');
+            if(loader) loader.remove();
+
+            // My Project ボタン以外を削除して再描画
+            const items = Array.from(listDiv.children);
+            items.forEach((item, i) => { if(i > 0) item.remove(); });
+
+            exampleCache.forEach((ex, i) => {
+                const card = document.createElement('div');
+                card.className = "group p-6 rounded-[2rem] cursor-pointer bg-white border border-slate-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-50 transition-all active:scale-[0.98]";
+                card.onclick = () => loadProject(i);
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-[9px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-tighter border border-blue-100/50">${ex.company || 'Lab'}</span>
+                        <span class="text-[8px] text-slate-300 font-bold tracking-widest">${ex.date ? ex.date.split(' ')[0] : ''}</span>
+                    </div>
+                    <h3 class="text-[13px] font-black text-slate-800 leading-tight mb-4 group-hover:text-blue-600 transition-colors line-clamp-2">${ex.project_name}</h3>
+                    <div class="flex items-center justify-between border-t border-slate-50 pt-4">
+                        <span class="text-[8px] text-slate-300 font-mono font-bold tracking-tight">${ex.project_id || 'ID-UNKNOWN'}</span>
+                        ${ex.url ? `<a href="${ex.url}" target="_blank" onclick="event.stopPropagation()" class="text-[10px] text-slate-400 hover:text-blue-500 font-black">Link ↗</a>` : ''}
+                    </div>
+                `;
+                listDiv.appendChild(card);
+            });
+        }
+
+        function loadProject(index) {
+            const editor = document.getElementById('python-input');
+            const label = document.getElementById('editor-label');
+            
+            if (index === -1) {
+                editor.value = originalCode;
+                label.innerText = "Editor / My Project";
+            } else {
+                // 退避ロジック
+                if (label.innerText === "Editor / My Project") {
+                    originalCode = editor.value;
+                    localStorage.setItem(SAVED_KEY, originalCode);
+                }
+                const ex = exampleCache[index];
+                editor.value = ex.code;
+                label.innerText = `Library / ${ex.project_id}`;
+            }
+            if(window.innerWidth < 1024) window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
         async function init() {
             document.getElementById('python-input').value = originalCode;
-            const listDiv = document.getElementById('project-list');
-            examples.forEach((ex, i) => {
-                const div = document.createElement('div');
-                div.className = "p-3 rounded-xl cursor-pointer hover:bg-slate-100 text-slate-600 text-xs transition-colors";
-                div.innerText = ex.name;
-                div.onclick = () => loadProject(i);
-                listDiv.appendChild(div);
-            });
+            fetchLibrary();
 
             pyodide = await loadPyodide();
             await pyodide.loadPackage(["sympy", "numpy"]);
             await pyodide.runPythonAsync(`
 import sympy as sp
 import numpy as np
+from sympy import symbols
 def symbols_list(shape, name):
     if len(shape) == 1: return np.array([sp.symbols(name.format(i)) for i in range(shape[0])])
     res = np.empty(shape, dtype=object)
@@ -102,44 +201,32 @@ def symbols_list(shape, name):
         for j in range(shape[1]): res[i,j] = sp.symbols(name.format(i, j))
     return res
             `);
-            document.getElementById('py-status').innerText = "READY";
-            document.getElementById('py-status').classList.replace("text-orange-400", "text-green-500");
+            const status = document.getElementById('py-status');
+            status.innerText = "Engine: Ready";
+            status.classList.replace("text-orange-500", "text-emerald-500");
+            status.classList.replace("bg-orange-50", "bg-emerald-50");
             document.getElementById('run-btn').disabled = false;
-            document.getElementById('output').innerText = "準備完了。実行ボタンを押すと計算を開始します。";
         }
 
-        function loadProject(index) {
-            const editor = document.getElementById('python-input');
-            if (index === -1) {
-                editor.value = originalCode;
-            } else {
-                originalCode = editor.value; // 保存
-                editor.value = examples[index].code;
-            }
-            // スマホならエディタのトップへ
-            window.scrollTo(0, 0);
-        }
-
-        // 入力監視
-        document.getElementById('python-input').addEventListener('input', (e) => {
-            originalCode = e.target.value;
-            localStorage.setItem(SAVED_KEY, originalCode);
-        });
-
-        // --- 実行 ---
         async function compileAndSolve() {
-            const out = document.getElementById('output');
-            const prog = document.getElementById('progress-bar');
-            
-            // スマホなら出力画面へスクロール
-            document.getElementById('console-section').scrollIntoView({ behavior: 'smooth' });
-            
-            out.innerText = ">>> Python解析中...";
-            prog.style.width = "0%";
+            const btn = document.getElementById('run-btn');
+            const originalText = btn.innerText;
+            btn.innerText = "RUNNING...";
+            btn.disabled = true;
 
             try {
                 const code = document.getElementById('python-input').value;
-                const pyBridge = `${code}\nexpr = sp.expand(H)\nqubo_dict = {}\nfor term in expr.as_ordered_terms():\n    coeff, monom = term.as_coeff_Mul()\n    vs = list(monom.free_symbols)\n    idx = \",\".join(sorted([v.name for v in vs]))\n    qubo_dict[idx] = qubo_dict.get(idx, 0) + float(coeff)\nimport json\njson.dumps(qubo_dict)`;
+                const pyBridge = `
+${code}
+expr = sp.expand(H)
+qubo_dict = {}
+for term in expr.as_ordered_terms():
+    coeff, monom = term.as_coeff_Mul()
+    vs = list(monom.free_symbols)
+    idx = ",".join(sorted([v.name for v in vs]))
+    qubo_dict[idx] = qubo_dict.get(idx, 0) + float(coeff)
+import json
+json.dumps(qubo_dict)`;
                 
                 const jsonStr = await pyodide.runPythonAsync(pyBridge);
                 const quboData = JSON.parse(jsonStr);
@@ -154,22 +241,35 @@ def symbols_list(shape, name):
                 }
 
                 const solver = new Bqubo(finalQubo);
-                const res = await solver.solve((s, kT) => {
-                    document.getElementById('kT-display').innerText = `TEMP: ${kT.toFixed(2)}`;
-                    prog.style.width = `${((5-kT)/5)*100}%`;
-                });
-
+                const res = await solver.solve();
                 const namedRes = {}; names.forEach((n, i) => namedRes[n] = res[i]);
-                out.innerText = "【計算完了】\n" + JSON.stringify(namedRes, null, 2);
+
+                drawPlot(names, res);
+                document.getElementById('output-json').innerText = JSON.stringify(namedRes, null, 2);
+                toggleResult(true);
             } catch (e) {
-                out.innerText = "エラーが発生しました:\n" + e;
+                alert("Execution Error:\n" + e);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
             }
         }
 
-        // --- 最小構成のBquboロジック ---
+        function drawPlot(labels, values) {
+            Plotly.newPlot('plotly-chart', [{
+                x: labels, y: Array.from(values), type: 'bar', 
+                marker: {color: Array.from(values).map(v => v === 1 ? '#2563eb' : '#f1f5f9'), line: {width: 0}}
+            }], {
+                yaxis: {tickvals: [0, 1], range: [-0.1, 1.1], gridcolor: '#f1f5f9'},
+                xaxis: {gridcolor: '#f1f5f9'},
+                margin: {t:20, b:40, l:40, r:20},
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+            }, {responsive: true, displayModeBar: false});
+        }
+
         class Bqubo {
             constructor(q) { this.qubo = q; }
-            async solve(onStep) {
+            async solve() {
                 const nodes = Array.from(new Set(Object.keys(this.qubo).flatMap(k=>k.split(',').map(Number)))).sort((a,b)=>a-b);
                 const N = nodes.length, map = new Map(nodes.map((n,i)=>[n,i])), linear = new Float64Array(N), adj = Array.from({length:N},()=>[]);
                 for(let k in this.qubo) {
@@ -181,24 +281,36 @@ def symbols_list(shape, name):
                 let cur = 0; for(let i=0; i<N; i++){ off[i]=cur; adjC[i]=adj[i].length; for(let e of adj[i]){ adjTo[cur]=e.to; adjW[cur]=e.w; cur++; } }
                 
                 return new Promise(res => {
-                    const worker = new Worker(URL.createObjectURL(new Blob([`self.onmessage = function(e){
+                    const blob = new Blob([`self.onmessage = function(e){
                         let {n,linear,adjTo,adjWeight,adjCount,offsets} = e.data;
-                        let state = new Uint8Array(n), kT = 5.0;
-                        while(kT > 0.01){
-                            for(let r=0; r<1000; r++){
-                                let i = (Math.random()*n)|0, field = linear[i];
-                                for(let k=0; k<adjCount[i]; k++) if(state[adjTo[offsets[i]+k]]===1) field += adjWeight[offsets[i]+k];
-                                if((state[i]===0?field:-field) <= 0 || Math.random() < Math.exp(-(state[i]===0?field:-field)/kT)) state[i]^=1;
+                        let state = new Uint8Array(n), kT = 10.0;
+                        for(let sweep=0; sweep<2000; sweep++){
+                            for(let i=0; i<n; i++){
+                                let idx = (Math.random()*n)|0;
+                                let field = linear[idx];
+                                for(let k=0; k<adjCount[idx]; k++) if(state[adjTo[offsets[idx]+k]]===1) field += adjWeight[offsets[idx]+k];
+                                if((state[idx]===0?field:-field) <= 0 || Math.random() < Math.exp(-(state[idx]===0?field:-field)/kT)) state[idx]^=1;
                             }
-                            kT *= 0.99; self.postMessage({state, kT, fin: false});
+                            kT *= 0.99;
                         }
-                        self.postMessage({state, kT, fin: true});
-                    }`], {type:'text/javascript'})));
+                        self.postMessage({state});
+                    }`], {type:'text/javascript'});
+                    const worker = new Worker(URL.createObjectURL(blob));
                     worker.postMessage({n:N, linear, adjTo, adjWeight:adjW, adjCount:adjC, offsets:off});
-                    worker.onmessage = e => { onStep(e.data.state, e.data.kT); if(e.data.fin){ worker.terminate(); res(e.data.state); } };
+                    worker.onmessage = e => { worker.terminate(); res(e.data.state); };
                 });
             }
         }
+
+        function toggleResult(show) { document.getElementById('result-modal').classList.toggle('hidden', !show); }
+        function toggleHelp(show) { document.getElementById('help-modal').classList.toggle('hidden', !show); }
+        document.getElementById('python-input').oninput = (e) => {
+            if (document.getElementById('editor-label').innerText.includes("My Project")) {
+                originalCode = e.target.value;
+                localStorage.setItem(SAVED_KEY, originalCode);
+            }
+        };
+
         init();
     </script>
 </body>

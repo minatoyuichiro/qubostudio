@@ -1,0 +1,33 @@
+[
+    {
+        "project_id": "1234-5678-9014",
+        "project_name": "3ルーク問題は、3×3マスに3つのルーク（飛車）を互いに利きが及ばないように置く方法を探す問題",
+        "date": "2025-02-09 09:00:00",
+        "code": "#量子ビットを用意（まとめて定義）\nq = symbols_list([3, 3], 'q{}_{}')\n\n#各行に1つだけ1\nH = 0\nH += (q[0][0] + q[0][1] + q[0][2] - 1)**2\nH += (q[1][0] + q[1][1] + q[1][2] - 1)**2\nH += (q[2][0] + q[2][1] + q[2][2] - 1)**2\n\n\n#各列に1つだけ1\nH += (q[0][0] + q[1][0] + q[2][0] - 1)**2\nH += (q[0][1] + q[1][1] + q[2][1] - 1)**2\nH += (q[0][2] + q[1][2] + q[2][2] - 1)**2",
+        "company": "TYTAN Official Github",
+        "url": "https://github.com/tytansdk/tytan"
+    },
+    {
+        "project_id": "1234-5678-9012",
+        "project_name": "3個の量子ビットのうち2個だけを1にする例",
+        "date": "2024-12-26 15:30:00",
+        "code": "# 3個の量子ビットのうち2個だけを1にする例です。結果は「量子ビットの値」「エネルギー（コスト）値」「出現数」>の順で格納されています。\nx = symbols('x')\ny = symbols('y')\nz = symbols('z')\n\nH = (x + y + z - 2)**2",
+        "company": "TYTAN Official Github",
+        "url": "https://github.com/tytansdk/tytan"
+    },
+    {   "project_id": "1234-5678-9013",
+        "project_name": "シフトスケジューリング問題",
+        "date": "2024-12-26 15:30:00",
+        "code": "# 要求作業量\nT = 6\nreq = np.array([3, 3, 5, 5, 4, 4])\n\n# シフト希望表\nN = 10\nshift = np.array([[2, 2, 2, 2, 0, 0],\n[0, 0, 0, 1, 1, 1],\n[1, 1, 0, 0, 0, 0],\n[0, 0, 0, 2, 2, 2],\n[0, 1, 1, 1, 0, 0],\n[0, 0, 3, 3, 0, 0],\n[0, 0, 0, 0, 3, 3],\n[0, 0, 0, 0, 2, 2],\n[2, 2, 2, 0, 0, 0],\n[0, 0, 1, 1, 1, 1]])\n#量子ビットを用意する\nq = symbols_list([10], 'q{}')\n\n#式の設定\nHcost = 0\nHcost += (q[0] + q[1] + q[2] + q[3] + q[4] + q[5] + q[6] + q[7] + q[8] + q[9] - 0)**2\n\nHconst = 0\nfor j in range(T):\n  Hconst += (sum(shift[i][j] * q[i] for i in range(N)) - req[j])**2\n\nH = Hconst + 0.1 * Hcost\n",
+        "company": "Quantum Fabric",
+        "url": "https://www.quantum-fabric.com/"
+    },
+    {
+        "project_id": "1234-5678-9015",
+        "project_name": "HOBO 5✕5の席にできるだけ多くの生徒を座らせる（ただし縦・横に3席連続で座ってはいけない）",
+        "date": "2025-02-09 09:00:00",
+        "code": "#量子ビットを用意\nq = symbols_list([5, 5], 'q{}_{}')\n\n#すべての席に座りたい（できれば）\nH1 = 0\nfor i in range(5):\n    for j in range(5):\n        H1 += - q[i, j]\n\n#どの直線に並ぶ3席も連続で座ってはいけない（絶対）\nH2 = 0\nfor i in range(5):\n    for j in range(5 - 3 + 1):\n        H2 += np.prod(q[i, j:j+3])\nfor j in range(5):\n    for i in range(5 - 3 + 1):\n        H2 += np.prod(q[i:i+3, j])\n\n\n#式の合体\nH = H1 + 10*H2",
+        "company": "TYTAN Official Github",
+        "url": "https://github.com/tytansdk/tytan"
+    }
+]
