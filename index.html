@@ -3,90 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QUBO Studio - Dashboard Edition</title>
+    <title>QUBO Studio - Final Fixed</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; min-height: 100dvh; color: #1e293b; }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; height: 100vh; display: flex; flex-direction: column; }
         .font-mono { font-family: 'Fira Code', monospace; }
-        .side-panel { max-height: calc(100dvh - 160px); }
-        /* アニメーション */
-        .update-flash { animation: flash 0.8s ease-out; }
+        
+        /* サイドバー全体のスクロール制御 */
+        .sidebar-scroll { height: calc(100vh - 140px); overflow-y: auto; scrollbar-width: none; }
+        .sidebar-scroll::-webkit-scrollbar { display: none; }
+        
+        /* グラフのズレ防止用コンテナ */
+        #side-plotly { width: 100% !important; min-height: 200px; }
+        
+        .update-flash { animation: flash 0.6s ease-out; }
         @keyframes flash { 0% { background-color: #dbeafe; } 100% { background-color: white; } }
     </style>
 </head>
-<body class="p-3 md:p-6 flex flex-col items-center">
+<body class="p-3 md:p-6">
 
-    <header class="w-full max-w-7xl sticky top-0 z-40 flex justify-between items-center bg-white/80 backdrop-blur-xl px-6 py-4 rounded-[2rem] border border-slate-200 shadow-sm mb-6">
+    <header class="w-full max-w-7xl mx-auto flex justify-between items-center bg-white/80 backdrop-blur-xl px-6 py-4 rounded-[2rem] border border-slate-200 shadow-sm mb-6 shrink-0">
         <div class="flex items-center gap-4">
-            <div class="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-200">Q</div>
+            <div class="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black">Q</div>
             <h1 class="font-black text-slate-900 text-lg tracking-tighter">QUBO Studio</h1>
         </div>
-        
-        <div class="flex items-center gap-2">
-            <div id="py-status" class="hidden md:block text-[10px] font-black text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 uppercase">Engine Loading...</div>
+        <div class="flex items-center gap-3">
+            <div id="py-status" class="hidden md:block text-[10px] font-black text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 uppercase tracking-tighter">Loading...</div>
             <button id="run-btn" onclick="compileAndSolve()" disabled class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-2xl font-black text-xs shadow-xl active:scale-95 disabled:opacity-20 transition-all">実行</button>
+            <button onclick="toggleHelp(true)" class="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 text-slate-400 font-bold hover:bg-slate-200 transition-colors">?</button>
         </div>
     </header>
 
-    <main class="w-full max-w-7xl flex flex-col lg:flex-row gap-6">
-        <section class="flex-1 flex flex-col bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden min-h-[600px]">
-            <div class="bg-slate-50/50 px-8 py-4 border-b border-slate-100 flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <span id="editor-label">Editor / My Project</span>
-                <span id="save-status" class="text-emerald-500 italic">● Auto Saved</span>
+    <main class="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden">
+        
+        <section class="flex-[3] flex flex-col bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+            <div class="bg-slate-50/50 px-8 py-4 border-b border-slate-100 flex justify-between items-center">
+                <span id="editor-label" class="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">My Project</span>
+                <span id="save-status" class="text-[9px] text-emerald-500 font-black">● AUTO SAVED</span>
             </div>
             <textarea id="python-input" class="w-full flex-1 p-8 text-slate-700 font-mono text-sm outline-none resize-none leading-relaxed" spellcheck="false"></textarea>
         </section>
 
-        <div class="w-full lg:w-[400px] flex flex-col gap-6 side-panel overflow-y-auto pr-1">
+        <div class="flex-[1.2] flex flex-col gap-6 sidebar-scroll">
             
             <aside id="quick-result-card" class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col shrink-0">
                 <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                     <span class="font-black text-[10px] text-blue-600 tracking-widest uppercase">Quick Result</span>
-                    <button onclick="toggleResult(true)" class="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition-colors">拡大表示</button>
+                    <button onclick="toggleResult(true)" class="text-[9px] font-black text-slate-400 hover:text-blue-600 transition-colors">拡大</button>
                 </div>
-                <div class="p-4 space-y-4">
-                    <div id="side-plotly" class="w-full h-[180px] bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold italic">
-                        No Data (Execute to Solve)
-                    </div>
-                    <div id="side-json" class="p-3 bg-slate-900 text-blue-200 rounded-xl font-mono text-[10px] max-h-[100px] overflow-auto whitespace-pre-wrap leading-tight border border-slate-700">{}</div>
+                <div class="p-4 flex flex-col">
+                    <div id="side-plotly" class="rounded-2xl bg-slate-50 border border-slate-100 mb-4 flex items-center justify-center text-[10px] text-slate-400 font-bold italic">Execute to see plot</div>
+                    <pre id="side-json" class="p-4 bg-slate-900 text-blue-200 rounded-2xl font-mono text-[10px] max-h-[120px] overflow-auto whitespace-pre-wrap leading-tight border border-slate-700 shadow-inner">{}</pre>
                 </div>
             </aside>
 
-            <aside class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+            <aside class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col shrink-0 mb-4">
                 <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                     <span class="font-black text-[11px] text-slate-500 tracking-widest uppercase">Library</span>
                     <button onclick="fetchLibrary(true)" class="text-[10px] text-blue-600 font-black hover:underline">SYNC</button>
                 </div>
-                <div id="project-list" class="flex-1 p-5 space-y-4">
+                <div id="project-list" class="p-5 space-y-4">
                     <div onclick="loadProject(-1)" class="p-5 rounded-[2rem] cursor-pointer bg-slate-900 text-white shadow-lg active:scale-95 transition-all">
                         <div class="text-[10px] text-blue-300 font-black uppercase mb-1">Restore</div>
                         <div class="text-sm font-black italic">✨ My Project</div>
                     </div>
-                    <div id="lib-loader" class="text-center py-10 animate-pulse text-slate-300 font-bold text-xs uppercase">Connecting to GitHub...</div>
+                    <div id="lib-loader" class="text-center py-10 animate-pulse text-slate-300 font-bold text-[10px] uppercase">Connecting...</div>
                 </div>
             </aside>
         </div>
     </main>
 
     <div id="result-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-[3.5rem] max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl modal-fade-in flex flex-col">
+        <div class="bg-white rounded-[3rem] max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl modal-fade-in flex flex-col border border-white/20">
             <div class="p-8 border-b border-slate-50 flex justify-between items-center">
-                <h2 class="text-2xl font-black text-slate-800 tracking-tighter">Detailed Result</h2>
-                <button onclick="toggleResult(false)" class="text-slate-400 text-3xl">&times;</button>
+                <h2 class="text-2xl font-black text-slate-800 tracking-tighter leading-none">Detailed View</h2>
+                <button onclick="toggleResult(false)" class="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-slate-400 text-2xl hover:text-red-500 transition-colors">&times;</button>
             </div>
             <div class="flex-1 overflow-auto p-10 space-y-10">
-                <div id="modal-plotly" class="w-full h-[380px] bg-slate-50 rounded-[2rem]"></div>
-                <pre id="modal-json" class="p-8 bg-slate-900 text-blue-200 rounded-[2rem] font-mono text-xs overflow-auto"></pre>
+                <div id="modal-plotly" class="w-full h-[380px] bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner"></div>
+                <pre id="modal-json" class="p-10 bg-slate-900 text-blue-200 rounded-[2.5rem] font-mono text-xs overflow-auto border border-slate-700 shadow-2xl"></pre>
             </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-[2.5rem] max-w-sm w-full p-10 shadow-2xl modal-fade-in text-center">
+            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-2xl font-black">Q?</div>
+            <h2 class="text-xl font-black text-slate-800 mb-3 tracking-tighter">使い方</h2>
+            <p class="text-sm text-slate-500 mb-8 leading-relaxed">変数 <b>H</b> にエネルギー関数を代入してください。<br>例: H = (x + y - 1)**2</p>
+            <button onclick="toggleHelp(false)" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">OK</button>
         </div>
     </div>
 
     <script>
         const JSON_URL = 'https://minatoyuichiro.github.io/qubostudio/examples.json';
-        const SAVED_KEY = 'qubo_studio_v4_dash';
+        const SAVED_KEY = 'qubo_studio_final_v5';
         const DEFAULT_CODE = "# QUBO Formula\nimport sympy as sp\nx = sp.symbols('x0:10')\nH = (sum(x) - 4)**2";
 
         let originalCode = localStorage.getItem(SAVED_KEY) || DEFAULT_CODE;
@@ -99,7 +113,7 @@
                 const res = await fetch(bustUrl, force ? { cache: "no-store" } : {});
                 exampleCache = await res.json();
                 renderLibrary();
-            } catch (e) { document.getElementById('lib-loader').innerText = "Sync Failed"; }
+            } catch (e) { document.getElementById('lib-loader').innerText = "Load Failed"; }
         }
 
         function renderLibrary() {
@@ -110,14 +124,22 @@
 
             exampleCache.forEach((ex, i) => {
                 const card = document.createElement('div');
-                card.className = "p-5 rounded-[2rem] bg-white border border-slate-100 hover:border-blue-200 transition-all cursor-pointer shadow-sm active:scale-95";
+                card.className = "p-5 rounded-[2rem] bg-white border border-slate-100 hover:border-blue-200 transition-all cursor-pointer shadow-sm active:scale-95 group";
                 card.onclick = () => loadProject(i);
+                
+                // 説明リンク(URL)を復活
+                const urlHtml = ex.url ? `<a href="${ex.url}" target="_blank" onclick="event.stopPropagation()" class="text-[9px] text-blue-400 font-bold hover:underline">Link ↗</a>` : '';
+
                 card.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-[8px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded uppercase tracking-tighter">${ex.company || 'LAB'}</span>
-                        <span class="text-[8px] text-slate-300 font-bold">${ex.date ? ex.date.split(' ')[0] : ''}</span>
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-[8px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded uppercase tracking-tighter border border-blue-100/50">${ex.company || 'LAB'}</span>
+                        <span class="text-[8px] text-slate-300 font-bold tracking-tight">${ex.date ? ex.date.split(' ')[0] : ''}</span>
                     </div>
-                    <h3 class="text-xs font-black text-slate-700 leading-snug line-clamp-2">${ex.project_name}</h3>
+                    <h3 class="text-[12px] font-black text-slate-700 leading-snug line-clamp-2 group-hover:text-blue-600 mb-3">${ex.project_name}</h3>
+                    <div class="flex items-center justify-between border-t border-slate-50 pt-3">
+                        <span class="text-[8px] text-slate-300 font-mono italic">${ex.project_id || ''}</span>
+                        ${urlHtml}
+                    </div>
                 `;
                 listDiv.appendChild(card);
             });
@@ -129,7 +151,8 @@
             if (index === -1) { editor.value = originalCode; label.innerText = "Editor / My Project"; }
             else { 
                 if (label.innerText.includes("My Project")) { originalCode = editor.value; localStorage.setItem(SAVED_KEY, originalCode); }
-                editor.value = exampleCache[index].code; label.innerText = `Library / ${exampleCache[index].project_id}`;
+                editor.value = exampleCache[index].code; 
+                label.innerText = `Library / ${exampleCache[index].project_id}`;
             }
         }
 
@@ -139,8 +162,8 @@
             pyodide = await loadPyodide();
             await pyodide.loadPackage(["sympy", "numpy"]);
             await pyodide.runPythonAsync("from sympy import symbols\nimport sympy as sp\nimport numpy as np\ndef symbols_list(shape, name):\n  if len(shape) == 1: return np.array([sp.symbols(name.format(i)) for i in range(shape[0])])\n  res = np.empty(shape, dtype=object)\n  for i in range(shape[0]):\n    for j in range(shape[1]): res[i,j] = sp.symbols(name.format(i, j))\n  return res");
-            document.getElementById('py-status').innerText = "Engine: Ready";
-            document.getElementById('py-status').classList.replace("text-orange-500", "text-emerald-500");
+            const st = document.getElementById('py-status');
+            st.innerText = "Engine: Ready"; st.classList.replace("text-orange-500", "text-emerald-500");
             document.getElementById('run-btn').disabled = false;
         }
 
@@ -161,28 +184,29 @@
                 const res = await new Bqubo(finalQubo).solve();
                 const namedRes = {}; names.forEach((n, i) => namedRes[n] = res[i]);
 
-                // 表示の更新（サイド ＆ モーダル）
                 updateResultDisplays(names, res, namedRes);
-                
-                // サイドパネルにフラッシュ効果
                 document.getElementById('quick-result-card').classList.add('update-flash');
-                setTimeout(() => document.getElementById('quick-result-card').classList.remove('update-flash'), 1000);
-
+                setTimeout(() => document.getElementById('quick-result-card').classList.remove('update-flash'), 600);
             } catch (e) { alert(e); } finally { btn.innerText = "実行"; btn.disabled = false; }
         }
 
         function updateResultDisplays(labels, values, json) {
-            const config = {responsive: true, displayModeBar: false};
             const trace = { x: labels, y: Array.from(values), type: 'bar', marker: {color: Array.from(values).map(v=>v===1?'#2563eb':'#e2e8f0')} };
-            const jsonText = JSON.stringify(json, null, 2);
+            const layout = { 
+                yaxis: {tickvals: [0, 1], range: [-0.1, 1.1], gridcolor: '#f8fafc'}, 
+                xaxis: {tickfont: {size: 8}},
+                margin: {t:10, b:30, l:30, r:10}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+            };
+            const config = {responsive: true, displayModeBar: false};
 
             // サイド
-            Plotly.newPlot('side-plotly', [trace], { margin: {t:10, b:30, l:30, r:10}, yaxis:{tickvals:[0,1], range:[-0.1, 1.1]}, xaxis:{tickfont:{size:8}} }, config);
-            document.getElementById('side-json').innerText = jsonText;
+            Plotly.newPlot('side-plotly', [trace], layout, config);
+            document.getElementById('side-json').innerText = JSON.stringify(json, null, 2);
             
             // モーダル
-            Plotly.newPlot('modal-plotly', [trace], { margin: {t:20, b:40, l:40, r:20}, yaxis:{tickvals:[0,1], range:[-0.1, 1.1]} }, config);
-            document.getElementById('modal-json').innerText = jsonText;
+            const modalLayout = {...layout, margin: {t:30, b:50, l:50, r:20}, xaxis: {tickfont: {size: 10}}};
+            Plotly.newPlot('modal-plotly', [trace], modalLayout, config);
+            document.getElementById('modal-json').innerText = JSON.stringify(json, null, 2);
         }
 
         class Bqubo {
@@ -198,10 +222,10 @@
                 const adjTo = new Int32Array(adj.flat().length), adjW = new Float64Array(adj.flat().length), adjC = new Int32Array(N), off = new Int32Array(N);
                 let cur = 0; for(let i=0; i<N; i++){ off[i]=cur; adjC[i]=adj[i].length; for(let e of adj[i]){ adjTo[cur]=e.to; adjW[cur]=e.w; cur++; } }
                 return new Promise(res => {
-                    const worker = new Worker(URL.createObjectURL(new Blob([`self.onmessage = function(e){
+                    const blob = new Blob([`self.onmessage = function(e){
                         let {n,linear,adjTo,adjWeight,adjCount,offsets} = e.data;
-                        let state = new Uint8Array(n), kT = 10.0;
-                        for(let sweep=0; sweep<2000; sweep++){
+                        let state = new Uint8Array(n), kT = 12.0;
+                        for(let sweep=0; sweep<2500; sweep++){
                             for(let i=0; i<n; i++){
                                 let idx=(Math.random()*n)|0, field=linear[idx];
                                 for(let k=0; k<adjCount[idx]; k++) if(state[adjTo[offsets[idx]+k]]===1) field+=adjWeight[offsets[idx]+k];
@@ -210,7 +234,8 @@
                             kT *= 0.99;
                         }
                         self.postMessage({state});
-                    }`], {type:'text/javascript'})));
+                    }`], {type:'text/javascript'});
+                    const worker = new Worker(URL.createObjectURL(blob));
                     worker.postMessage({n:N, linear, adjTo, adjWeight:adjW, adjCount:adjC, offsets:off});
                     worker.onmessage = e => { worker.terminate(); res(e.data.state); };
                 });
@@ -218,6 +243,7 @@
         }
 
         function toggleResult(show) { document.getElementById('result-modal').classList.toggle('hidden', !show); }
+        function toggleHelp(show) { document.getElementById('help-modal').classList.toggle('hidden', !show); }
         document.getElementById('python-input').oninput = (e) => {
             if (document.getElementById('editor-label').innerText.includes("My Project")) {
                 originalCode = e.target.value; localStorage.setItem(SAVED_KEY, originalCode);
